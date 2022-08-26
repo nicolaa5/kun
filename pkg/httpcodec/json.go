@@ -124,5 +124,9 @@ func (j JSON) DecodeFailureResponse(body io.ReadCloser, out *error) error {
 }
 
 func (j JSON) RegisterTypes(types map[string]types.Type) error {
-	
+	return gcode.ErrNotImplemented
+}
+
+func (j JSON) RetrieveType(name string) (types.Type, error) {
+	return nil, gcode.ErrNotImplemented
 }
