@@ -1,6 +1,7 @@
 package httpcodec
 
 import (
+	"go/types"
 	"io"
 	"net/http"
 )
@@ -20,6 +21,10 @@ type Codec interface {
 	EncodeRequestBody(body interface{}) (io.Reader, map[string]string, error)
 	DecodeSuccessResponse(body io.ReadCloser, out interface{}) error
 	DecodeFailureResponse(body io.ReadCloser, out *error) error
+	
+	// Use types to decode interfaces to the type in which they were encoded
+	RegisterTypes(types map[string]types.Type) error
+	RetrieveType(name string) (types.Type, error)
 }
 
 type Codecs interface {

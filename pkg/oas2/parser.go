@@ -134,10 +134,10 @@ func (p *Parser) addStructDefinition(name string, value reflect.Value, embedded 
 		var fieldValueType reflect.Type
 
 		structField := &parser.StructField{
-			Name:      field.Name,
+			Name: field.Name,
 			//CamelCase: false,
-			Type:      field.Type.Name(),
-			Tag:       field.Tag,
+			Type: field.Type.Name(),
+			Tag:  field.Tag,
 		}
 		if err := structField.Parse(); err != nil {
 			panic(err)

@@ -2,6 +2,7 @@ package endpoint
 
 import (
 	"fmt"
+	"go/types"
 	"strings"
 
 	"github.com/RussellLuo/kun/gen/util/annotation"
@@ -30,6 +31,8 @@ import (
 {{- $params := nonCtxParams .Params .Op.Request.Params}}
 {{- $hasCtxParam := hasCtxParam .Params}}
 
+{{ interfaceWrapper .Params}}
+ 
 {{- if $params}}
 type {{.Name}}Request struct {
 	{{- range $params}}
@@ -105,6 +108,32 @@ func MakeEndpointOf{{.Name}}(s {{$.Data.SrcPkgQualifier}}{{$.Data.InterfaceName}
 }
 
 {{- end}} {{/* End of range .DocMethods */}}
+
+func unmarshal(data []byte, wrapper interface{}) error {
+	s := string(data)
+	if s == "null" || s == "" {
+		return nil
+	}
+
+	var x struct {
+		Raw json.RawMessage
+		Type string
+	}
+	t, err := codec.GetType(x.Type) 
+	if err != nil {
+		return err
+	}
+
+	value := reflect.ValueOf(wrapper).Elem()
+	field := value.FieldByName("W")
+
+	defer field.Set(reflect.ValueOf(t))
+
+	if len(x.Raw) == 0 {
+		return nil 
+	}
+	return json.Unmarshal(x.Raw, t)
+}
 `
 )
 
@@ -233,6 +262,27 @@ func (g *Generator) Generate(pkgInfo *generator.PkgInfo, ifaceData *ifacetool.Da
 				}
 
 				return fmt.Sprintf("`%s:\"%s\"`", g.opts.SchemaTag, name)
+			},
+			"interfaceWrapper": func(params []*ifacetool.Param) string {
+				var results []string
+
+				for _, p := range params {
+					t := p.Type.Underlying()
+					if _, ok :=  t.(*types.Interface); !ok || p.TypeString == "context.Context" {
+						continue
+					}
+					
+					s := strings.Split(p.TypeString, ".")
+					name := s[len(s) -1]
+
+					results = append(results, fmt.Sprintf("type w%s struct { W %s }", name, p.TypeString))
+					results = append(results, fmt.Sprintf("func (w *w%s) UnmarshalJSON(raw []byte) error { return unmarshal(w, raw) }", name))
+				}
+
+				result := strings.Join(results, "\n")
+				fmt.Printf("\nresult: %#v\n", result)
+
+				return result
 			},
 		},
 		Formatted:      g.opts.Formatted,
