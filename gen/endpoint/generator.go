@@ -17,14 +17,18 @@ var (
 package {{.PkgInfo.CurrentPkgName}}
 
 import (
+	"reflect"
 	"github.com/RussellLuo/validating/v2"
 	"github.com/go-kit/kit/endpoint"
 	"github.com/RussellLuo/kun/pkg/httpoption"
+	"github.com/RussellLuo/kun/pkg/httpcodec"
 
 	{{- range .Data.Imports}}
 	{{.ImportString}}
 	{{- end }}
 )
+
+var customTypes = map[string]reflect.Type{}
 
 {{- range .DocMethods}}
 
@@ -109,9 +113,34 @@ func MakeEndpointOf{{.Name}}(s {{$.Data.SrcPkgQualifier}}{{$.Data.InterfaceName}
 
 {{- end}} {{/* End of range .DocMethods */}}
 
+func marshal(x interface{}) ([]byte, error) {
+	if x == nil {
+		return []byte("null"), nil 
+	}
+
+	//store the type information in the wrapper struct
+	var w struct {
+		Raw json.RawMessage
+		Type string
+	}
+	var err error 
+
+	w.Raw, err = json.Marshal(x)
+	if err != nil {
+		return nil, err
+	}
+
+	w.Type, err = typeFrom(x)
+	if err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(w)
+}
+
 func unmarshal(data []byte, wrapper interface{}) error {
 	s := string(data)
-	if s == "null" || s == "" {
+	if s == "null" {
 		return nil
 	}
 
@@ -119,7 +148,8 @@ func unmarshal(data []byte, wrapper interface{}) error {
 		Raw json.RawMessage
 		Type string
 	}
-	t, err := codec.GetType(x.Type) 
+
+	t, err := GetType(x.Type) 
 	if err != nil {
 		return err
 	}
@@ -133,6 +163,43 @@ func unmarshal(data []byte, wrapper interface{}) error {
 		return nil 
 	}
 	return json.Unmarshal(x.Raw, t)
+}
+
+// Use types to decode interfaces to the type in which they were encoded
+func SetType(x interface{}) error {
+	t := reflect.TypeOf(x)
+	t = underlying(t)
+
+	name, err := typeFrom(t)
+	if err != nil {
+		return gcode.ErrInvalidArgument
+	}
+
+	if _, ok := customTypes[name]; ok {
+		return gcode.ErrInvalidArgument
+	}
+
+	customTypes[name] = t
+	return nil
+}
+
+func GetType(name string) (reflect.Type, error)  {
+	return customTypes[name], nil 
+}
+
+// Get type string from an interface
+func typeFrom(x interface{}) (string, error) {
+	t := reflect.TypeOf(x)
+	sub := strings.Split(t.String(), ".")
+	return sub[len(sub) - 1], nil
+}
+
+func underlying(t reflect.Type) reflect.Type {
+	e := t.Elem()
+	if e.Kind() == reflect.Ptr {
+		return underlying(t)
+	}
+	return t
 }
 `
 )
@@ -276,7 +343,7 @@ func (g *Generator) Generate(pkgInfo *generator.PkgInfo, ifaceData *ifacetool.Da
 					name := s[len(s) -1]
 
 					results = append(results, fmt.Sprintf("type w%s struct { W %s }", name, p.TypeString))
-					results = append(results, fmt.Sprintf("func (w *w%s) UnmarshalJSON(raw []byte) error { return unmarshal(w, raw) }", name))
+					results = append(results, fmt.Sprintf("func (w *w%s) UnmarshalJSON(raw []byte) error { return unmarshal(raw, w) }", name))
 				}
 
 				result := strings.Join(results, "\n")

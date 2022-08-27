@@ -4,10 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"go/types"
 	"io"
 	"net/http"
-	"reflect"
 
 	"github.com/RussellLuo/kun/pkg/werror"
 	"github.com/RussellLuo/kun/pkg/werror/gcode"
@@ -22,17 +20,7 @@ type FailureResponse struct {
 	Error Error `json:"error"`
 }
 
-var customTypes = map[string]reflect.Type{}
-
 type JSON struct{}
-
-func (j JSON) SetCustomType(name string, ct reflect.Type) error {
-	if _, ok := customTypes[name]; ok {
-		return gcode.ErrInvalidArgument
-	}
-	customTypes[name] = ct
-	return nil
-}
 
 func (j JSON) DecodeRequestParam(name string, values []string, out interface{}) error {
 	if err := defaultBasicParam.Decode(values, out); err != nil {
@@ -56,18 +44,6 @@ func (j JSON) DecodeRequestParams(name string, values map[string][]string, out i
 
 func (j JSON) DecodeRequestBody(r *http.Request, out interface{}) error {
 	if err := json.NewDecoder(r.Body).Decode(out); err != nil {
-		return werror.Wrap(gcode.ErrInvalidArgument, err)
-	}
-	return nil
-}
-
-func (j JSON) DecodeRequestBodyFromType(r *http.Request, out interface{}, modifierFunc func() (io.Reader, error)) error {
-	x, err := modifierFunc()
-	if err != nil {
-		return werror.Wrap(gcode.ErrInvalidArgument, err)
-	}
-
-	if err := json.NewDecoder(x).Decode(out); err != nil {
 		return werror.Wrap(gcode.ErrInvalidArgument, err)
 	}
 	return nil
@@ -121,12 +97,4 @@ func (j JSON) DecodeFailureResponse(body io.ReadCloser, out *error) error {
 
 	*out = gcode.FromCodeMessage(resp.Error.Code, resp.Error.Message)
 	return nil
-}
-
-func (j JSON) RegisterTypes(types map[string]types.Type) error {
-	return gcode.ErrNotImplemented
-}
-
-func (j JSON) RetrieveType(name string) (types.Type, error) {
-	return nil, gcode.ErrNotImplemented
 }
