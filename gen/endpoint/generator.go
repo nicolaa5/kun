@@ -40,7 +40,7 @@ var customTypes = map[string]reflect.Type{}
 {{- if $params}}
 type {{.Name}}Request struct {
 	{{- range $params}}
-	{{title .Name}} {{.TypeString}} {{addTag .Alias .TypeString}}
+	{{title .Name}} {{findType .Param}} {{addTag .Alias .TypeString}}
 	{{- end}}
 }
 
@@ -57,7 +57,7 @@ func Validate{{.Name}}Request(newSchema func({{addAsterisks .Name}}Request) vali
 
 type {{.Name}}Response struct {
 	{{- range .Returns}}
-	{{title .Name}} {{.TypeString}} {{addTag .Name .TypeString}}
+	{{title .Name}} {{findType .}} {{addTag .Name .TypeString}}
 	{{- end}}
 }
 
@@ -329,6 +329,16 @@ func (g *Generator) Generate(pkgInfo *generator.PkgInfo, ifaceData *ifacetool.Da
 				}
 
 				return fmt.Sprintf("`%s:\"%s\"`", g.opts.SchemaTag, name)
+			},
+			"findType": func(param *ifacetool.Param) string {
+				if !param.IsInterface() ||  param.TypeString == "context.Context" || param.TypeString == "error" {
+					return param.TypeString
+				}
+					
+				s := strings.Split(param.TypeString, ".")
+				name := s[len(s) -1]
+
+				return fmt.Sprintf("w%s", name)
 			},
 			"interfaceWrapper": func(params []*ifacetool.Param) string {
 				var results []string

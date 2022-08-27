@@ -45,6 +45,11 @@ func (p *Param) CallName() string {
 	return p.Name
 }
 
+func (p *Param) IsInterface() bool {
+	_, ok := p.Type.Underlying().(*types.Interface)
+	return ok
+}
+
 type Method struct {
 	Doc     []string
 	Name    string
