@@ -28,7 +28,9 @@ import (
 	{{- end }}
 )
 
-var customTypes = map[string]reflect.Type{}
+var GetType = func(name string) (interface{}, error) {
+	return nil, fmt.Errorf("implement GetType function for marshaling custom types")
+}
 
 {{- range .DocMethods}}
 
@@ -130,10 +132,9 @@ func marshal(x interface{}) ([]byte, error) {
 		return nil, err
 	}
 
-	w.Type, err = typeFrom(x)
-	if err != nil {
-		return nil, err
-	}
+	typeOf := reflect.TypeOf(x)
+	sub := strings.Split(typeOf.String(), ".")
+	w.Type = sub[len(sub)-1]
 
 	return json.Marshal(w)
 }
@@ -147,6 +148,9 @@ func unmarshal(data []byte, wrapper interface{}) error {
 	var x struct {
 		Raw json.RawMessage
 		Type string
+	}
+	if err := json.Unmarshal(data, &x); err != nil {
+		return err
 	}
 
 	t, err := GetType(x.Type) 
@@ -163,42 +167,6 @@ func unmarshal(data []byte, wrapper interface{}) error {
 		return nil 
 	}
 	return json.Unmarshal(x.Raw, t)
-}
-
-// Use types to decode interfaces to the type in which they were encoded
-func SetType(x interface{}) error {
-	t := reflect.TypeOf(x)
-	t = underlying(t)
-
-	name, err := typeFrom(t)
-	if err != nil {
-		return gcode.ErrInvalidArgument
-	}
-
-	if _, ok := customTypes[name]; ok {
-		return gcode.ErrInvalidArgument
-	}
-
-	customTypes[name] = t
-	return nil
-}
-
-func GetType(name string) (reflect.Type, error)  {
-	return customTypes[name], nil 
-}
-
-// Get type string from an interface
-func typeFrom(x interface{}) (string, error) {
-	t := reflect.TypeOf(x)
-	sub := strings.Split(t.String(), ".")
-	return sub[len(sub) - 1], nil
-}
-
-func underlying(t reflect.Type) reflect.Type {
-	if t.Kind() == reflect.Ptr {
-		return t.Elem()
-	}
-	return t
 }
 `
 )
@@ -437,7 +405,7 @@ func (g *Generator) Generate(pkgInfo *generator.PkgInfo, ifaceData *ifacetool.Da
 					name := s[len(s)-1]
 
 					results = append(results, fmt.Sprintf("type w%s struct { W %s }", name, p.TypeString))
-					results = append(results, fmt.Sprintf("func (w *w%s) MarshalJson() ([]byte, error) { return marshal(w.W); }", name))
+					results = append(results, fmt.Sprintf("func (w w%s) MarshalJSON() ([]byte, error) { return marshal(w.W); }", name))
 					results = append(results, fmt.Sprintf("func (w *w%s) UnmarshalJSON(raw []byte) error { return unmarshal(raw, w); }", name))
 					results = append(results, fmt.Sprintf("func %sList(list []w%s) (result []%s) { for _, item := range list { result = append(result, item.W) }; return result }", name, name, p.TypeString))
 					results = append(results, fmt.Sprintf("func w%sList(list []%s) (result []w%s) { for _, item := range list { result = append(result, w%s{item}) }; return result }", name, p.TypeString, name, name))
