@@ -94,7 +94,7 @@ func MakeEndpointOf{{.Name}}(s {{$.Data.SrcPkgQualifier}}{{$.Data.InterfaceName}
 		)
 		return {{addAmpersand .Name}}Response{
 			{{- range .Returns}}
-			{{title .Name}}: {{.Name}},
+			{{title .Name}}: {{joinResponseParam .}},
 			{{- end}}
 		}, nil
 		{{- else}}
@@ -394,6 +394,36 @@ func (g *Generator) Generate(pkgInfo *generator.PkgInfo, ifaceData *ifacetool.Da
 					return basic
 				}
 
+			},
+			"joinResponseParam": func(param *ifacetool.Param) string {
+				if param.TypeString == "error" {
+					return param.Name
+				}
+
+				switch v := param.Type.Underlying().(type) {
+				case *types.Interface:
+					return fmt.Sprintf("wSource{%s}", param.Name)
+				case *types.Slice:
+					if _, ok := v.Elem().Underlying().(*types.Interface); !ok {
+						return param.Name
+					}
+
+					s := strings.Split(param.TypeString, ".")
+					name := s[len(s)-1]
+
+					return fmt.Sprintf("w%sList(%s)", name, param.Name)
+				case *types.Map:
+					if _, ok := v.Elem().Underlying().(*types.Interface); !ok {
+						return param.Name
+					}
+
+					s := strings.Split(param.TypeString, ".")
+					name := s[len(s)-1]
+
+					return fmt.Sprintf("w%sMap(%s)", name, param.Name)
+				default:
+					return param.Name
+				}
 			},
 			"interfaceWrapper": func(params []*ifacetool.Param) string {
 				var results []string
