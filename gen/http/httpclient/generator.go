@@ -171,7 +171,7 @@ func (c *HTTPClient) {{.Name}}({{.ArgList}}) {{.ReturnArgNamedValueList}} {
 		if err != nil {
 			return {{returnErr .Returns}}
 		}
-		return {{joinParams $nonErrReturns "respBody.>Name" ", "}}, nil
+		return {{joinParams $nonErrReturns "respBody" ">Name" ", "}}, nil
 	{{- else}}
 		return nil
 	{{- end}}
@@ -238,17 +238,30 @@ func (g *Generator) Generate(pkgInfo *generator.PkgInfo, ifaceData *ifacetool.Da
 
 	return generator.Generate(template, data, generator.Options{
 		Funcs: map[string]interface{}{
-			"joinParams": func(params []*ifacetool.Param, format, sep string) string {
+			"joinParams": func(params []*ifacetool.Param, parent, format, sep string) string {
 				var results []string
 
 				for _, p := range params {
 					var r *strings.Replacer
-					if p.IsInterface() {
-						r = strings.NewReplacer(">Name", strings.Title(p.Name + ".W"))
-					} else {
-						r = strings.NewReplacer(">Name", strings.Title(p.Name))
+					switch p.Type.Underlying().(type) {
+					case *types.Interface:
+						r = strings.NewReplacer(">Name", fmt.Sprintf("%s.%s.W", parent, strings.Title(p.Name)))
+					case *types.Slice:
+						s := strings.Split(p.TypeString, ".")
+						name := s[len(s) -1]
+
+						r = strings.NewReplacer(">Name", fmt.Sprintf("w%sList(%s.%s)", name, parent, strings.Title(p.Name)))
+					case *types.Map:
+						s := strings.Split(p.TypeString, ".")
+						name := s[len(s) -1]
+
+						r = strings.NewReplacer(">Name", fmt.Sprintf("w%sMap(%s.%s)", name, parent, strings.Title(p.Name)))
+					default:
+						r = strings.NewReplacer(">Name", fmt.Sprintf("%s.%s", parent, strings.Title(p.Name)))
 					}
+					
 					results = append(results, r.Replace(format))
+					fmt.Printf("\nresults: %#v\n", results)
 				}
 				return strings.Join(results, sep)
 			},

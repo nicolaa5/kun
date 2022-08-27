@@ -331,15 +331,28 @@ func (g *Generator) Generate(pkgInfo *generator.PkgInfo, ifaceData *ifacetool.Da
 				return fmt.Sprintf("`%s:\"%s\"`", g.opts.SchemaTag, name)
 			},
 			"findType": func(param *ifacetool.Param) string {
-
-				fmt.Printf("\nparam: %#v\n", param)
-
 				if 	param.TypeString == "context.Context" || 
 					param.TypeString == "error" {
 					return param.TypeString
 				}
 
 				switch v := param.Type.Underlying().(type) {
+				case *types.Interface:
+					s := strings.Split(param.TypeString, ".")
+					name := s[len(s) -1]
+	
+					return fmt.Sprintf("w%s", name)
+
+				case *types.Slice:
+					if _, ok := v.Elem().Underlying().(*types.Interface); !ok {
+						return param.TypeString
+					}
+
+					s := strings.Split(param.TypeString, ".")
+					name := s[len(s) -1]
+					
+					return fmt.Sprintf("[]w%s", name)
+
 				case *types.Map:
 					if _, ok := v.Elem().Underlying().(*types.Interface); !ok {
 						return param.TypeString
@@ -349,13 +362,6 @@ func (g *Generator) Generate(pkgInfo *generator.PkgInfo, ifaceData *ifacetool.Da
 					name := s[len(s) -1]
 					
 					return fmt.Sprintf("map[%s]w%s", v.Key().String(), name)
-
-				case *types.Interface:
-					s := strings.Split(param.TypeString, ".")
-					name := s[len(s) -1]
-	
-					return fmt.Sprintf("w%s", name)
-
 				default: 
 					return param.TypeString
 				}
