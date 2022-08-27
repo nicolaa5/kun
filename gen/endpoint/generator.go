@@ -195,9 +195,8 @@ func typeFrom(x interface{}) (string, error) {
 }
 
 func underlying(t reflect.Type) reflect.Type {
-	e := t.Elem()
-	if e.Kind() == reflect.Ptr {
-		return underlying(t)
+	if t.Kind() == reflect.Ptr {
+		return t.Elem()
 	}
 	return t
 }
