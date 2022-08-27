@@ -248,18 +248,18 @@ func (g *Generator) Generate(pkgInfo *generator.PkgInfo, ifaceData *ifacetool.Da
 						r = strings.NewReplacer(">Name", fmt.Sprintf("%s.%s.W", parent, strings.Title(p.Name)))
 					case *types.Slice:
 						s := strings.Split(p.TypeString, ".")
-						name := s[len(s) -1]
+						name := s[len(s)-1]
 
-						r = strings.NewReplacer(">Name", fmt.Sprintf("w%sList(%s.%s)", name, parent, strings.Title(p.Name)))
+						r = strings.NewReplacer(">Name", fmt.Sprintf("%sList(%s.%s)", name, parent, strings.Title(p.Name)))
 					case *types.Map:
 						s := strings.Split(p.TypeString, ".")
-						name := s[len(s) -1]
+						name := s[len(s)-1]
 
-						r = strings.NewReplacer(">Name", fmt.Sprintf("w%sMap(%s.%s)", name, parent, strings.Title(p.Name)))
+						r = strings.NewReplacer(">Name", fmt.Sprintf("%sMap(%s.%s)", name, parent, strings.Title(p.Name)))
 					default:
 						r = strings.NewReplacer(">Name", fmt.Sprintf("%s.%s", parent, strings.Title(p.Name)))
 					}
-					
+
 					results = append(results, r.Replace(format))
 					fmt.Printf("\nresults: %#v\n", results)
 				}
