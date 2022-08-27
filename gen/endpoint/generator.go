@@ -331,14 +331,34 @@ func (g *Generator) Generate(pkgInfo *generator.PkgInfo, ifaceData *ifacetool.Da
 				return fmt.Sprintf("`%s:\"%s\"`", g.opts.SchemaTag, name)
 			},
 			"findType": func(param *ifacetool.Param) string {
-				if !param.IsInterface() ||  param.TypeString == "context.Context" || param.TypeString == "error" {
+
+				fmt.Printf("\nparam: %#v\n", param)
+
+				if 	param.TypeString == "context.Context" || 
+					param.TypeString == "error" {
 					return param.TypeString
 				}
-					
-				s := strings.Split(param.TypeString, ".")
-				name := s[len(s) -1]
 
-				return fmt.Sprintf("w%s", name)
+				switch v := param.Type.Underlying().(type) {
+				case *types.Map:
+					if _, ok := v.Elem().Underlying().(*types.Interface); !ok {
+						return param.TypeString
+					}
+
+					s := strings.Split(param.TypeString, ".")
+					name := s[len(s) -1]
+					
+					return fmt.Sprintf("map[%s]w%s", v.Key().String(), name)
+
+				case *types.Interface:
+					s := strings.Split(param.TypeString, ".")
+					name := s[len(s) -1]
+	
+					return fmt.Sprintf("w%s", name)
+
+				default: 
+					return param.TypeString
+				}
 			},
 			"interfaceWrapper": func(params []*ifacetool.Param) string {
 				var results []string
@@ -353,12 +373,13 @@ func (g *Generator) Generate(pkgInfo *generator.PkgInfo, ifaceData *ifacetool.Da
 					name := s[len(s) -1]
 
 					results = append(results, fmt.Sprintf("type w%s struct { W %s }", name, p.TypeString))
-					results = append(results, fmt.Sprintf("func (w *w%s) UnmarshalJSON(raw []byte) error { return unmarshal(raw, w) }", name))
+					results = append(results, fmt.Sprintf("func (w *w%s) MarshalJson() ([]byte, error) { return marshal(w.W); }", name))
+					results = append(results, fmt.Sprintf("func (w *w%s) UnmarshalJSON(raw []byte) error { return unmarshal(raw, w); }", name))
+					results = append(results, fmt.Sprintf("func w%sList(list []w%s) (result []%s) { for _, item := range list { result = append(result, item.W) }; return result }", name, name, p.TypeString))
+					results = append(results, fmt.Sprintf("func w%sMap(m map[string]w%s) (result map[string]%s) { mm := make(map[string]%s); for k, item := range m { mm[k] = item.W }; return mm }", name, name, p.TypeString, p.TypeString))
 				}
-
-				result := strings.Join(results, "\n")
-				fmt.Printf("\nresult: %#v\n", result)
-
+				
+				result := strings.Join(results, "\n\n")
 				return result
 			},
 		},

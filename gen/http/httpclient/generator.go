@@ -242,7 +242,12 @@ func (g *Generator) Generate(pkgInfo *generator.PkgInfo, ifaceData *ifacetool.Da
 				var results []string
 
 				for _, p := range params {
-					r := strings.NewReplacer(">Name", strings.Title(p.Name))
+					var r *strings.Replacer
+					if p.IsInterface() {
+						r = strings.NewReplacer(">Name", strings.Title(p.Name + ".W"))
+					} else {
+						r = strings.NewReplacer(">Name", strings.Title(p.Name))
+					}
 					results = append(results, r.Replace(format))
 				}
 				return strings.Join(results, sep)
