@@ -369,7 +369,11 @@ func (g *Generator) Generate(pkgInfo *generator.PkgInfo, ifaceData *ifacetool.Da
 
 				switch v := param.Type.Underlying().(type) {
 				case *types.Interface:
-					return fmt.Sprintf("wSource{%s}", param.Name)
+
+					s := strings.Split(param.TypeString, ".")
+					name := s[len(s)-1]
+
+					return fmt.Sprintf("w%s{%s}", name, param.Name)
 				case *types.Slice:
 					if _, ok := v.Elem().Underlying().(*types.Interface); !ok {
 						return param.Name
