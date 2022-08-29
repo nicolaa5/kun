@@ -17,6 +17,7 @@ var (
 package {{.PkgInfo.CurrentPkgName}}
 
 import (
+	"fmt"
 	"reflect"
 	"github.com/RussellLuo/validating/v2"
 	"github.com/go-kit/kit/endpoint"
@@ -37,8 +38,8 @@ var GetType = func(name string) (interface{}, error) {
 {{- $params := nonCtxParams .Params .Op.Request.Params}}
 {{- $hasCtxParam := hasCtxParam .Params}}
 
-{{ interfaceWrapper .Params}}
- 
+{{ interfaceWrapper .Params .Returns}}
+
 {{- if $params}}
 type {{.Name}}Request struct {
 	{{- range $params}}
@@ -396,26 +397,40 @@ func (g *Generator) Generate(pkgInfo *generator.PkgInfo, ifaceData *ifacetool.Da
 					return param.Name
 				}
 			},
-			"interfaceWrapper": func(params []*ifacetool.Param) string {
+			"interfaceWrapper": func(params []*ifacetool.Param, returns []*ifacetool.Param) string {
 				var results []string
+				typesMap := make(map[string]*ifacetool.Param)
 
 				for _, p := range params {
-					t := p.Type.Underlying()
-					if _, ok := t.(*types.Interface); !ok || p.TypeString == "context.Context" {
+					if _, ok := typesMap[p.Name]; !ok {
+						typesMap[p.Name] = p
+					}
+				}
+				for _, r := range returns {
+					if _, ok := typesMap[r.Name]; !ok {
+						typesMap[r.Name] = r
+					}
+				}
+
+				for _, v := range typesMap {
+					t := v.Type.Underlying()
+					if _, ok := t.(*types.Interface); !ok || 
+						v.TypeString == "context.Context" || 
+						v.TypeString == "error" {
 						continue
 					}
 
-					s := strings.Split(p.TypeString, ".")
+					s := strings.Split(v.TypeString, ".")
 					name := s[len(s)-1]
 
-					results = append(results, fmt.Sprintf("type w%s struct { W %s }", name, p.TypeString))
+					results = append(results, fmt.Sprintf("type w%s struct { W %s }", name, v.TypeString))
 					results = append(results, fmt.Sprintf("func (w w%s) MarshalJSON() ([]byte, error) { return marshal(w.W); }", name))
 					results = append(results, fmt.Sprintf("func (w *w%s) UnmarshalJSON(raw []byte) error { return unmarshal(raw, w); }", name))
-					results = append(results, fmt.Sprintf("func %sList(list []w%s) (result []%s) { for _, item := range list { result = append(result, item.W) }; return result }", name, name, p.TypeString))
-					results = append(results, fmt.Sprintf("func w%sList(list []%s) (result []w%s) { for _, item := range list { result = append(result, w%s{item}) }; return result }", name, p.TypeString, name, name))
+					results = append(results, fmt.Sprintf("func %sList(list []w%s) (result []%s) { for _, item := range list { result = append(result, item.W) }; return result }", name, name, v.TypeString))
+					results = append(results, fmt.Sprintf("func w%sList(list []%s) (result []w%s) { for _, item := range list { result = append(result, w%s{item}) }; return result }", name, v.TypeString, name, name))
 
-					results = append(results, fmt.Sprintf("func %sMap(m map[string]w%s) (result map[string]%s) { mm := make(map[string]%s); for k, item := range m { mm[k] = item.W }; return mm }", name, name, p.TypeString, p.TypeString))
-					results = append(results, fmt.Sprintf("func w%sMap(m map[string]%s) (result map[string]w%s) { mm := make(map[string]w%s); for k, item := range m { mm[k] = w%s{item} }; return mm }", name, p.TypeString, name, name, name))
+					results = append(results, fmt.Sprintf("func %sMap(m map[string]w%s) (result map[string]%s) { mm := make(map[string]%s); for k, item := range m { mm[k] = item.W }; return mm }", name, name, v.TypeString, v.TypeString))
+					results = append(results, fmt.Sprintf("func w%sMap(m map[string]%s) (result map[string]w%s) { mm := make(map[string]w%s); for k, item := range m { mm[k] = w%s{item} }; return mm }", name, v.TypeString, name, name, name))
 				}
 
 				result := strings.Join(results, "\n\n")
