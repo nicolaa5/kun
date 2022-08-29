@@ -33,12 +33,12 @@ var GetType = func(name string) (interface{}, error) {
 	return nil, fmt.Errorf("implement GetType function for marshaling custom types")
 }
 
+{{ interfaceWrapper .DocMethods}}
+
 {{- range .DocMethods}}
 
 {{- $params := nonCtxParams .Params .Op.Request.Params}}
 {{- $hasCtxParam := hasCtxParam .Params}}
-
-{{ interfaceWrapper .Params .Returns}}
 
 {{- if $params}}
 type {{.Name}}Request struct {
@@ -397,28 +397,35 @@ func (g *Generator) Generate(pkgInfo *generator.PkgInfo, ifaceData *ifacetool.Da
 					return param.Name
 				}
 			},
-			"interfaceWrapper": func(params []*ifacetool.Param, returns []*ifacetool.Param) string {
+			"interfaceWrapper": func(methods []MethodWithOp) string {
+				
 				var results []string
 				typesMap := make(map[string]*ifacetool.Param)
 
-				for _, p := range params {
-					if _, ok := typesMap[p.Name]; !ok {
-						typesMap[p.Name] = p
+				for _, m := range methods {
+					for _, p := range m.Params {
+						if _, ok := typesMap[p.Name]; !ok {
+							typesMap[p.TypeString] = p
+						}
+					}
+					for _, r := range m.Returns {
+						if _, ok := typesMap[r.Name]; !ok {
+							typesMap[r.TypeString] = r
+						}
 					}
 				}
-				for _, r := range returns {
-					if _, ok := typesMap[r.Name]; !ok {
-						typesMap[r.Name] = r
-					}
-				}
+				fmt.Printf("\n\n%#v\n\n", typesMap)
 
 				for _, v := range typesMap {
+
 					t := v.Type.Underlying()
 					if _, ok := t.(*types.Interface); !ok || 
 						v.TypeString == "context.Context" || 
 						v.TypeString == "error" {
 						continue
 					}
+
+					fmt.Printf("\n\n%#v\n\n", v)
 
 					s := strings.Split(v.TypeString, ".")
 					name := s[len(s)-1]
