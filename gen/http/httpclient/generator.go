@@ -101,11 +101,11 @@ func (c *HTTPClient) {{.Name}}({{.ArgList}}) {{.ReturnArgNamedValueList}} {
 	{{- else}}
 	reqBody := struct {
 		{{- range $bodyParams}}
-		{{title .Name}} {{.Type}} {{addTag .Alias .Type}}
+		{{title .Name}} {{reqBodyType .}} {{addTag .Alias .Type}}
 		{{- end}}
 	}{
 		{{- range $bodyParams}}
-		{{title .Name}}: {{.Name}},
+		{{title .Name}}: {{reqBodyTypeWrap .}},
 		{{- end}}
 	}
 	{{- end}} {{/* if $bodyField */}}
@@ -411,6 +411,57 @@ func (g *Generator) Generate(pkgInfo *generator.PkgInfo, ifaceData *ifacetool.Da
 				returns = append(returns, "err")
 
 				return strings.Join(returns, ", ")
+			},
+			"reqBodyType": func(param *openapi.Param) string {
+				if param.Type == "context.Context" ||
+					param.Type == "error" {
+					return param.Type
+				}
+
+				switch v := param.RawType.Underlying().(type) {
+				case *types.Interface:
+					s := strings.Split(param.Type, ".")
+					name := s[len(s)-1]
+
+					return fmt.Sprintf("w%s", name)
+
+				case *types.Slice:
+					if _, ok := v.Elem().Underlying().(*types.Interface); !ok {
+						return param.Type
+					}
+
+					s := strings.Split(param.Type, ".")
+					name := s[len(s)-1]
+
+					return fmt.Sprintf("[]w%s", name)
+
+				case *types.Map:
+					if _, ok := v.Elem().Underlying().(*types.Interface); !ok {
+						return param.Type
+					}
+
+					s := strings.Split(param.Type, ".")
+					name := s[len(s)-1]
+
+					return fmt.Sprintf("map[%s]w%s", v.Key().String(), name)
+				default:
+					return param.Type
+				}
+			},
+			"reqBodyTypeWrap": func(param *openapi.Param) string {
+				if param.Type == "error" {
+					return param.Name
+				}
+
+				switch param.RawType.Underlying().(type) {
+				case *types.Interface:
+					s := strings.Split(param.Type, ".")
+					name := s[len(s)-1]
+
+					return fmt.Sprintf("w%s{%s}", name, param.Name)
+				default: 
+					return param.Name
+				}
 			},
 		},
 		Formatted:      g.opts.Formatted,
