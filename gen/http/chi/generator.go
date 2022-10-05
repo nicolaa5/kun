@@ -30,6 +30,7 @@ import (
 	"github.com/RussellLuo/kun/pkg/trace/xnet"
 	{{- end}}
 	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/RussellLuo/kun/pkg/httpoption"
 
@@ -44,6 +45,8 @@ import (
 
 func NewHTTPRouter(svc {{$.Data.SrcPkgQualifier}}{{$.Data.InterfaceName}}, codecs httpcodec.Codecs, opts ...httpoption.Option) chi.Router {
 	r := chi.NewRouter()
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
 	options := httpoption.NewOptions(opts...)
 
 	{{if $enableTracing -}}
